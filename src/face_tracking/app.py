@@ -28,7 +28,7 @@ from datetime import datetime
 from .tracker        import CentroidTracker
 from .analytics      import SessionStats, log_analytics
 from .logger         import log_event
-from .dashboard      import draw_dashboard
+from .dashboard      import draw_dashboard, draw_desktop_command_view
 from .face_detector  import GpuFaceDetector
 from .camera         import ThreadedCapture
 
@@ -37,8 +37,15 @@ from .camera         import ThreadedCapture
 # Configuration
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Video source — 0 = built-in webcam, 1 = external USB camera; or a file path for recorded video
-SOURCE = 0
+# Video source: 0 = built-in webcam, 1 = external USB camera, URL, or video file path.
+def _video_source():
+    value = os.environ.get("VIDEO_SOURCE", "0").strip()
+    if value.isdigit():
+        return int(value)
+    return value
+
+
+SOURCE = _video_source()
 
 # Restricted area  (x1, y1, x2, y2) in pixels — adjust to your frame size
 #RESTRICTED_RECT = (100, 50, 700, 500)
@@ -52,8 +59,8 @@ DETECT_WIDTH     = 320 if MAX_FPS else 0   # Inference width (0 = full frame)
 DETECT_INTERVAL  = 2 if MAX_FPS else 1     # Run detector every N frames
 THREADED_CAPTURE = MAX_FPS
 LIGHT_HUD        = MAX_FPS
-WINDOW_WIDTH     = 0 if MAX_FPS else 1920  # 0 = native camera size (no upscale)
-WINDOW_HEIGHT    = 0 if MAX_FPS else 1080
+WINDOW_WIDTH     = 0 if MAX_FPS else 1366  # 0 = native camera size (no upscale)
+WINDOW_HEIGHT    = 0 if MAX_FPS else 768
 
 # Camera capture — MJPG codec unlocks higher USB camera FPS on Windows
 CAMERA_WIDTH     = 640
@@ -184,9 +191,9 @@ if MAX_FPS:
     print(f"  MAX FPS mode - detect every {DETECT_INTERVAL} frames at {DETECT_WIDTH}px wide")
 print("  ESC / Q - quit   |   S - screenshot   |   R - reset stats")
 
-cv2.namedWindow("Class Surveillance", cv2.WINDOW_NORMAL)
+cv2.namedWindow("Smart Campus Command View", cv2.WINDOW_NORMAL)
 if WINDOW_WIDTH > 0 and WINDOW_HEIGHT > 0:
-    cv2.resizeWindow("Class Surveillance", WINDOW_WIDTH, WINDOW_HEIGHT)
+    cv2.resizeWindow("Smart Campus Command View", WINDOW_WIDTH, WINDOW_HEIGHT)
 
 last_rects = []
 restricted_rect = None
@@ -279,22 +286,31 @@ while True:
     remaining_alert = max(0.0, alert_until - time.time())
 
     # ── Draw dashboard ─────────────────────────────────────────────────
-    draw_dashboard(
-        frame, tracker, stats, fps,
-        RESTRICTED_RECT, in_zone_ids,
-        alert_msg, remaining_alert,
-        lite=LIGHT_HUD,
-    )
+    if LIGHT_HUD:
+        display_frame = draw_dashboard(
+            frame, tracker, stats, fps,
+            RESTRICTED_RECT, in_zone_ids,
+            alert_msg, remaining_alert,
+            lite=True,
+        )
+    else:
+        display_frame = draw_desktop_command_view(
+            frame, tracker, stats, fps,
+            RESTRICTED_RECT, in_zone_ids,
+            alert_msg, remaining_alert,
+            zone_entry_count=zone_entry_count,
+            status="RUNNING",
+        )
 
     # ── Show ────────────────────────────────────────────────────────────
-    cv2.imshow("Class Surveillance", frame)
+    cv2.imshow("Smart Campus Command View", display_frame)
 
     # ── Keyboard ────────────────────────────────────────────────────────
     key = cv2.waitKey(1) & 0xFF
     if key in (27, ord("q"), ord("Q")):
         break
     elif key in (ord("s"), ord("S")):
-        take_screenshot(frame, "manual")
+        take_screenshot(display_frame, "manual")
     elif key in (ord("r"), ord("R")):
         stats = SessionStats()
         tracker = CentroidTracker(MAX_DISAPPEARED, MAX_DISTANCE, HISTORY_LEN)
