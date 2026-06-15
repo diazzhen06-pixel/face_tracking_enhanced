@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: face-tracking-enhanced
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-web.txt
+    startCommand: gunicorn web:app --bind 0.0.0.0:$PORT --threads 4 --timeout 120
+    envVars:
+      - key: VIDEO_SOURCE
+        sync: false
+      - key: CAMERA_WIDTH
+        value: "640"
+      - key: CAMERA_HEIGHT
+        value: "480"
+      - key: FACE_SCORE
+        value: "0.7"
+      - key: DETECT_INTERVAL
+        value: "1"
+      - key: LIGHT_HUD
+        value: "false"
+      - key: MOTION_GATE
+        value: "false"

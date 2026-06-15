@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Campus Command View</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='web.css') }}">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="identity">
+        <span class="agency">Smart Campus Security</span>
+        <h1>Command View</h1>
+      </div>
+      <div class="top-actions">
+        <div class="clock" id="clock">--:--:--</div>
+        <div class="status" id="status">Starting</div>
+      </div>
+    </header>
+
+    <section class="layout">
+      <section class="feed-panel" aria-label="Live camera feed">
+        <div class="feed-header">
+          <div>
+            <span class="label">Camera 01</span>
+            <strong>Main Entrance Monitoring</strong>
+          </div>
+          <div class="recording">
+            <span></span>
+            Live
+          </div>
+        </div>
+        <div class="feed-frame">
+          <img class="feed" src="{{ url_for('video_feed') }}" alt="Live surveillance video stream">
+          <div class="scanline"></div>
+        </div>
+        <div class="feed-footer">
+          <span>Restricted zone overlay active</span>
+          <span id="frameCount">Frame 0</span>
+        </div>
+      </section>
+
+      <aside class="side-panel">
+        <section class="summary">
+          <div class="metric primary">
+            <span>Faces</span>
+            <strong id="faces">0</strong>
+          </div>
+          <div class="metric primary danger">
+            <span>Inside Zone</span>
+            <strong id="insideZone">0</strong>
+          </div>
+        </section>
+
+        <section class="metric-grid">
+          <div class="metric">
+            <span>Occupancy</span>
+            <strong id="occupancy">LOW</strong>
+          </div>
+          <div class="metric">
+            <span>FPS</span>
+            <strong id="fps">0.0</strong>
+          </div>
+          <div class="metric">
+            <span>Peak</span>
+            <strong id="peak">0</strong>
+          </div>
+          <div class="metric">
+            <span>Alerts</span>
+            <strong id="alerts">0</strong>
+          </div>
+          <div class="metric wide">
+            <span>Zone Entries</span>
+            <strong id="zoneEntries">0</strong>
+          </div>
+          <div class="metric wide">
+            <span>Session Time</span>
+            <strong id="elapsed">0s</strong>
+          </div>
+        </section>
+
+        <section class="alert-panel">
+          <span class="panel-title">Latest Event</span>
+          <div class="alert" id="alertMessage">No active alert</div>
+        </section>
+
+        <button id="snapshot" type="button">Save Screenshot</button>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const fields = ["faces", "insideZone", "occupancy", "fps", "peak", "alerts", "zoneEntries"];
+    const statusEl = document.getElementById("status");
+
+    function formatElapsed(seconds) {
+      const total = Math.max(0, Math.round(Number(seconds) || 0));
+      const minutes = Math.floor(total / 60);
+      const secs = total % 60;
+      return minutes > 0 ? `${minutes}m ${secs}s` : `${secs}s`;
+    }
+
+    function refreshClock() {
+      document.getElementById("clock").textContent = new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
+
+    async function refreshStatus() {
+      try {
+        const res = await fetch("/api/status");
+        const data = await res.json();
+        statusEl.textContent = data.status;
+        statusEl.dataset.state = String(data.status || "").toLowerCase();
+        for (const field of fields) {
+          document.getElementById(field).textContent = data[field];
+        }
+        document.getElementById("elapsed").textContent = formatElapsed(data.elapsedSeconds);
+        document.getElementById("frameCount").textContent = `Frame ${data.frame}`;
+        document.getElementById("alertMessage").textContent = data.alertMessage || "No active alert";
+      } catch {
+        statusEl.textContent = "disconnected";
+        statusEl.dataset.state = "disconnected";
+      }
+    }
+
+    document.getElementById("snapshot").addEventListener("click", async () => {
+      const res = await fetch("/api/snapshot", { method: "POST" });
+      const data = await res.json();
+      document.getElementById("alertMessage").textContent = data.ok
+        ? `Screenshot saved: ${data.path}`
+        : "No frame available yet";
+    });
+
+    refreshClock();
+    refreshStatus();
+    setInterval(refreshClock, 1000);
+    setInterval(refreshStatus, 1000);
+  </script>
+</body>
+</html>
